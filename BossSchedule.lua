@@ -4,7 +4,6 @@
 
 -- Table of Bosses (Time in HH:MM format, 24h)
 -- 1=Sunday, 2=Monday, 3=Tuesday, 4=Wednesday, 5=Thursday, 6=Friday, 7=Saturday
--- Based on provided image/description. 
 -- IMPORTANT: Update this table if the schedule changes.
 
 local schedule = {
@@ -90,6 +89,12 @@ function SecondsToClock(seconds)
     return string.format("%02d:%02d", h, m)
 end
 
+-- Helper: Get day name from day index (1=Sunday, 7=Saturday)
+function GetDayName(dayIdx)
+    local days = {"Domingo", "Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado"}
+    return days[dayIdx] or "Desconhecido"
+end
+
 
 
 function Update()
@@ -115,34 +120,29 @@ function Update()
         end
     end
     
-    -- Check next day(s) until we have at least 1 entry
-    local checkDay = todayIdx
-    local dayOffset = 1
-    
-    while #upcoming < 1 do
-        checkDay = checkDay + 1
-        if checkDay > 7 then checkDay = 1 end
-        
-        local dayName = "Amanhã"
-        
-        if schedule[checkDay] then
-            for _, entry in ipairs(schedule[checkDay]) do
-                local bm = TimeToMinutes(entry.time)
-                -- Add 24h * dayOffset to diff
-                local diff = ((bm * 60) + (24 * 60 * 60 * dayOffset)) - currentSecondsTotal
+    -- If no bosses today, check next days
+    if #upcoming == 0 then
+        for daysAhead = 1, 7 do
+            local nextDayIdx = ((todayIdx - 1 + daysAhead) % 7) + 1
+            if schedule[nextDayIdx] and #schedule[nextDayIdx] > 0 then
+                local firstBoss = schedule[nextDayIdx][1]
+                local bm = TimeToMinutes(firstBoss.time)
+                
+                -- Calculate time until the boss
+                local secondsUntilMidnight = (24 * 60 * 60) - currentSecondsTotal
+                local secondsIntoNextDay = bm * 60
+                local totalSeconds = secondsUntilMidnight + ((daysAhead - 1) * 24 * 60 * 60) + secondsIntoNextDay
                 
                 table.insert(upcoming, {
-                    day = dayName,
-                    time = entry.time,
-                    bosses = entry.bosses,
-                    diff = diff
+                    day = GetDayName(nextDayIdx),
+                    time = firstBoss.time,
+                    bosses = firstBoss.bosses,
+                    diff = totalSeconds
                 })
-                if #upcoming >= 1 then break end
+                break
             end
         end
-        dayOffset = dayOffset + 1
-        if dayOffset > 14 then break end 
-    end
+    end 
 
     -- Set Variables using SKIN:Bang
     if upcoming[1] then
